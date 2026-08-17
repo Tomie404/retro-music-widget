@@ -418,7 +418,7 @@ button:focus-visible, input:focus-visible{ outline:2px solid #4a90e2; outline-of
   max-width:34em; max-height:3.4em;
   align-items:center; gap:.45em;
   padding:.35em .55em;
-  font-size:clamp(10px, 5.5vh, 15px);
+  font-size:clamp(11px, 6.5vh, 18px);
   position:relative; overflow:hidden;
 }
 .mini-b{ border:none; padding:.28em; display:flex; align-items:center; justify-content:center; background:none; color:inherit; flex:none; }
@@ -530,6 +530,11 @@ body[data-size="auto"] .p-win98,
 body[data-size="auto"] .p-xp,
 body[data-size="auto"] .p-minimal{ width:100%; }
 body[data-size="auto"] .p-ipod{ width:min(100%, 52em); }
+
+/* 와이드에서는 세로로 고정된 빈 영역을 줄여, 남는 높이를 글자 크기에 쓴다 */
+body[data-size="auto"] .p-xp .xp-display{ min-height:5.2em; }
+body[data-size="auto"] .p-xp .xp-list{ max-height:7em; }
+body[data-size="auto"] .p-win98 .w98-lcd{ min-height:4.2em; }
 
 /* forced mini / forced full (설정에서 선택) */
 body[data-size="mini"] .player{ display:none !important; }
@@ -818,9 +823,9 @@ body.embedded .panel{ display:none !important; }
   </div>
 
   <div class="grp">
-    <div class="lab">음악 링크 (유튜브 · mp3 주소)</div>
-    <input type="text" data-el="in-yt" placeholder="https://youtu.be/… 또는 https://…/song.mp3">
-    <div class="hint">쉼표로 여러 곡. 입력 후 Enter. 링크가 임베드 URL에 담겨 노션에서도 같은 곡이 재생돼요. 단, 유튜브·외부 mp3는 위젯을 직접 호스팅(GitHub Pages 등)했을 때 가장 확실합니다.</div>
+    <div class="lab">음악 링크 (유튜브 · mp3)</div>
+    <input type="text" data-el="in-yt" placeholder="https://youtu.be/…  또는  song.mp3">
+    <div class="hint">쉼표로 여러 곡, 입력 후 Enter. <b>여기 넣은 곡은 링크에 저장돼서 새로고침·다른 기기·노션 어디서든 그대로 유지돼요.</b> 위젯과 같은 사이트에 mp3를 올렸다면 <code>song.mp3</code>처럼 파일명만 적어도 됩니다.</div>
   </div>
 
   <div class="grp">
@@ -842,8 +847,8 @@ body.embedded .panel{ display:none !important; }
 
   <div class="grp">
     <div class="lab">음악 파일</div>
-    <button class="filebtn" data-act="eject">🎵 오디오 파일 불러오기 (여러 개 가능)</button>
-    <div class="hint">파일은 이 브라우저에서만 재생되고, 페이지를 새로 열면 다시 불러와야 해요. 유튜브·파일이 없으면 데모 트랙으로 동작합니다.</div>
+    <button class="filebtn" data-act="eject">🎵 오디오 파일 불러오기 (미리듣기용)</button>
+    <div class="hint"><b>임시 재생용이에요.</b> 브라우저 보안상 올린 파일은 이 탭에서만 살아있어서, 새로고침하거나 노션에 임베드하면 사라집니다. 계속 유지하려면 위의 <b>음악 링크</b>를 쓰세요.</div>
   </div>
 
   <div class="grp">
@@ -999,7 +1004,8 @@ body.embedded .panel{ display:none !important; }
       var m = u.match(/(?:youtu\.be\/|v=|shorts\/|embed\/|live\/)([A-Za-z0-9_-]{11})/) ||
               (u.length === 11 ? u.match(/^([A-Za-z0-9_-]{11})$/) : null);
       if(m){ if(ids.indexOf(m[1]) < 0) ids.push(m[1]); }
-      else if(/^https?:\/\//i.test(u)) urls.push(u);
+      /* 전체 주소 + 같은 사이트에 올린 파일의 상대경로(song.mp3, music/song.mp3) 모두 허용 */
+      else if(/^https?:\/\//i.test(u) || /\.(mp3|m4a|aac|ogg|oga|wav|flac|webm)(\?.*)?$/i.test(u)) urls.push(u);
     });
     return { ids:ids, urls:urls };
   }
@@ -1273,23 +1279,47 @@ body.embedded .panel{ display:none !important; }
 
   /* 크기 계산 — 반응형: 임베드 폭·높이에 꽉 차게 / 기본 고정: 표준 크기 유지(넘칠 때만 축소) */
   var EMW  = { win98:36, xp:42, ipod:34.5, minimal:30 };
-  var NATF = { win98:13, xp:13, ipod:15,   minimal:14 };   /* 스킨별 표준(기본형) 폰트 px */
+  var NATF = { win98:15, xp:15, ipod:16,   minimal:15 };   /* 스킨별 표준(기본형) 폰트 px */
   function fitPlayer(){
-    if(document.body.dataset.size === "mini") return;
-    if(document.body.dataset.size === "auto" &&
-       window.matchMedia("(max-width:330px), (max-height:170px)").matches) return;
+    var size = document.body.dataset.size;
+    if(size === "mini") return;
+    if(size === "auto" && window.matchMedia("(max-width:330px), (max-height:170px)").matches) return;
     var pl = $(".player.p-" + state.skin);
     if(!pl) return;
     var emW = EMW[state.skin];
+    var avaW = window.innerWidth - 28, avaH = window.innerHeight - 28;
+    var f;
     pl.style.fontSize = "10px";
-    pl.style.width = (emW * 10) + "px";
-    var emH = pl.offsetHeight / 10;
-    pl.style.width = "";
-    var fFit = Math.min((window.innerWidth - 28) / emW, (window.innerHeight - 28) / emH);
-    var f = document.body.dataset.size === "full"
-      ? Math.min(NATF[state.skin], fFit)   /* 기본 고정: 표준 크기, 임베드가 작으면 그만큼만 축소 */
-      : Math.min(fFit, 26);                /* 반응형: 임베드에 최대로 맞춤 */
-    pl.style.fontSize = Math.max(7, f).toFixed(2) + "px";
+    if(size === "auto" && state.skin !== "ipod"){
+      /* 반응형: 가로는 CSS(width:100%)로 이미 꽉 차므로 세로만 제약 →
+         남는 높이를 폰트로 채워서 여백만 넓고 글씨는 작은 상태를 막는다 */
+      var emHs = pl.offsetHeight / 10;
+      f = Math.min(avaH / emHs, 34);
+    }else{
+      pl.style.width = (emW * 10) + "px";
+      var emH = pl.offsetHeight / 10;
+      pl.style.width = "";
+      var fFit = Math.min(avaW / emW, avaH / emH);
+      f = size === "full" ? Math.min(NATF[state.skin], fFit) : Math.min(fFit, 30);
+    }
+    var cap = size === "full" ? NATF[state.skin] : 34;
+    f = Math.min(f, cap);
+    pl.style.fontSize = Math.max(8, f).toFixed(2) + "px";
+
+    /* 폭이 100%로 고정된 반응형에서는 높이가 폰트에 정확히 비례하지 않는다.
+       실제 높이를 재서 남으면 키우고 넘치면 줄이는 보정을 두 번 반복한다.
+       (고정 모드는 폰트가 커지면 가로도 함께 커지므로 넘칠 때만 줄인다) */
+    var stretched = size === "auto" && state.skin !== "ipod";
+    for(var i = 0; i < 2; i++){
+      var h = pl.offsetHeight;
+      if(!h) break;
+      var ratio = avaH / h;
+      if(!stretched) ratio = Math.min(ratio, 1);
+      if(ratio > 1.015 || ratio < 0.985){
+        f = Math.min(f * ratio, cap);
+        pl.style.fontSize = Math.max(8, f).toFixed(2) + "px";
+      }else break;
+    }
   }
 
   function applySettings(){
