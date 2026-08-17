@@ -229,10 +229,11 @@ button:focus-visible, input:focus-visible{ outline:2px solid #4a90e2; outline-of
 .xp-nowbig{ padding:.9em 1em; display:flex; flex-direction:column; min-width:0; }
 .xp-nowbig .t{ font-size:1.5em; font-weight:bold; line-height:1.15; }
 .xp-nowbig .a{ font-size:1.05em; color:#bbb; margin-top:.15em; }
-.xp-nowbig .icons{ margin-top:auto; display:flex; gap:.5em; }
+.xp-nowbig .icons{ margin-top:auto; display:flex; gap:.5em; align-items:center; }
 .xp-nowbig .icons button{
   background:#1c1c1c; color:#9a9a9a; border:1px solid #3a3a3a; border-radius:.2em;
-  font-size:.7em; padding:.2em .5em;
+  font-size:.7em; padding:0; width:2.4em; height:2.4em; line-height:1;
+  display:flex; align-items:center; justify-content:center;
 }
 .xp-list{
   border-left:1px solid #2a2a2a; padding:.5em 0; overflow-y:auto; max-height:11em;
@@ -548,7 +549,6 @@ body[data-size="full"] .minibar{ display:none !important; }
   body[data-size="auto"] .player{ display:none !important; }
   body[data-size="auto"] .minibar{ display:flex; }
   body[data-size="auto"] #app{ padding:6px; }
-  body[data-size="auto"] .gear{ display:none; }
 }
 
 /* ---------- settings ---------- */
@@ -560,8 +560,9 @@ body[data-size="full"] .minibar{ display:none !important; }
   display:flex; align-items:center; justify-content:center;
 }
 .gear:hover, .gear:focus-visible{ opacity:1; }
-/* 임베드(iframe) 안에서는 위젯만 보이게 — 설정은 원본 페이지에서 */
-body.embedded .gear{ display:none; }
+/* 임베드 안에서는 위젯만 — 설정 UI는 아예 존재하지 않게 (장식용 창 버튼으로도 열리지 않음) */
+body.embedded .gear,
+body.embedded .panel{ display:none !important; }
 .panel{
   position:fixed; top:0; right:0; bottom:0; z-index:50;
   width:min(320px, 92vw);
@@ -612,7 +613,8 @@ body.embedded .gear{ display:none; }
 </style>
 
 <svg width="0" height="0" style="position:absolute" aria-hidden="true">
-  <symbol id="i-play" viewBox="0 0 16 16"><path d="M4 2l9 6-9 6z"/></symbol>
+  <!-- 재생 삼각형은 무게중심이 왼쪽에 쏠려 있어, 시각적 중앙에 오도록 오른쪽으로 1 보정 -->
+  <symbol id="i-play" viewBox="0 0 16 16"><path d="M5 2l9 6-9 6z"/></symbol>
   <symbol id="i-pause" viewBox="0 0 16 16"><path d="M4 2h3v12H4zm5 0h3v12H9z"/></symbol>
   <symbol id="i-stop" viewBox="0 0 16 16"><path d="M3 3h10v10H3z"/></symbol>
   <symbol id="i-prev" viewBox="0 0 16 16"><path d="M3 2h2v12H3zm10 0L6 8l7 6z"/></symbol>
@@ -877,9 +879,9 @@ body.embedded .gear{ display:none; }
   var LS_KEY = "syMusicWidget.v1";
   var reduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 
-  /* iframe(노션 임베드 등) 안에서는 위젯만 보여준다 */
-  var embedded = false;
-  try{ embedded = window.self !== window.top; }catch(e){ embedded = true; }
+  /* 임베드 모드는 오직 링크의 embed=1 로 결정한다.
+     (아티팩트 뷰어 자체가 iframe이라 iframe 감지를 쓰면 메이커에서도 설정이 사라진다) */
+  var embedded = new URLSearchParams(location.search).get("embed") === "1";
   if(embedded) document.body.classList.add("embedded");
 
   /* 스킨별 색상 슬롯: k=키, p=URL 파라미터명, def=기본값 (""=테마 자동) */
@@ -915,8 +917,8 @@ body.embedded .gear{ display:none; }
 
   var qs = new URLSearchParams(location.search);
   var HEX6 = /^[0-9a-fA-F]{6}$/;
-  /* 임베드 링크(embed=1)로 열리면 링크에 담긴 설정만 사용 — 이전 방문의 저장값이 끼어들지 않게 */
-  var fromEmbed = qs.get("embed") === "1";
+  /* 임베드 링크로 열리면 링크에 담긴 설정만 사용 — 이전 방문의 저장값이 끼어들지 않게 */
+  var fromEmbed = embedded;
 
   try{
     var saved = fromEmbed ? null : JSON.parse(localStorage.getItem(LS_KEY) || "null");
@@ -958,7 +960,6 @@ body.embedded .gear{ display:none; }
   if(["auto","full","mini"].indexOf(qs.get("size")) >= 0) state.size = qs.get("size");
   if(qs.get("bg") === "clear") state.clear = true;
   if(qs.get("auto") === "1") state.autoplay = true;
-  if(qs.get("embed") === "1"){ embedded = true; document.body.classList.add("embedded"); }
 
   function saveState(){
     if(fromEmbed) return;   /* 임베드에서는 저장하지 않음 — 링크가 유일한 설정 소스 */
@@ -1576,7 +1577,7 @@ body.embedded .gear{ display:none; }
         $("[data-el='plbtn']").classList.toggle("on", pl.classList.contains("open"));
         fitPlayer();
       }
-      else if(act === "settings") panel.classList.toggle("open");
+      else if(act === "settings"){ if(!embedded) panel.classList.toggle("open"); }
       else if(act === "copy"){
         var inp = $("[data-el='embedurl']");
         var done = function(){ var b=$("[data-el='copybtn']"); b.textContent="복사됨!"; setTimeout(function(){ b.textContent="복사"; },1500); };
